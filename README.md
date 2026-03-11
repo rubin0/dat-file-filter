@@ -20,7 +20,7 @@ Compatible with formats used by **ClrMamePro**, **RomVault**, **Logiqx**, and si
 ## Usage
 
 ### 1. Open the tool
-Open [rom_dat_filter.html](https://rubin0.github.io/dat-file-filter/ in any modern browser (Chrome, Firefox, Edge, Safari).
+Open [rom_dat_filter.html](https://rubin0.github.io/dat-file-filter/) in any modern browser (Chrome, Firefox, Edge, Safari).
 
 ### 2. Load a DAT file
 Drag a `.dat` or `.xml` file onto the drop zone, or click to browse.  
