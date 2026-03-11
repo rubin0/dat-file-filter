@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ROM DAT Filter</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --panel: #0f0f1a;
+    --border: #1a1a2e;
+    --accent: #00ff9f;
+    --accent2: #ff003c;
+    --accent3: #0af;
+    --yellow: #ffd700;
+    --text: #c8d6e5;
+    --dim: #4a5568;
+    --glow: 0 0 20px rgba(0,255,159,0.3);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.07) 2px, rgba(0,0,0,0.07) 4px);
+    pointer-events: none; z-index: 1000;
+  }
+
+  header {
+    padding: 2rem 3rem;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 1.5rem;
+    position: relative; overflow: hidden;
+  }
+  header::after {
+    content: '';
+    position: absolute; bottom: 0; left: 0;
+    width: 100%; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), var(--accent3), transparent);
+    animation: scan 3s linear infinite;
+  }
+  @keyframes scan { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+
+  .logo-icon {
+    width: 48px; height: 48px;
+    border: 2px solid var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem;
+    animation: pulse 2s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  @keyframes pulse {
+    0%,100% { box-shadow: var(--glow), inset 0 0 10px rgba(0,255,159,0.1); }
+    50%      { box-shadow: 0 0 35px rgba(0,255,159,0.5), inset 0 0 20px rgba(0,255,159,0.2); }
+  }
+
+  h1 {
+    font-family: 'Orbitron', monospace;
+    font-size: 1.6rem; font-weight: 900; letter-spacing: 0.15em;
+    background: linear-gradient(135deg, var(--accent), var(--accent3));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .subtitle { font-size: 0.7rem; color: var(--dim); letter-spacing: 0.3em; margin-top: 0.2rem; }
+
+  main {
+    max-width: 900px; margin: 0 auto;
+    padding: 2.5rem 2rem;
+    display: grid; gap: 2rem;
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 1.5rem;
+    position: relative;
+    transition: border-color 0.3s;
+  }
+  .panel:hover { border-color: var(--dim); }
+  .panel.loaded { border-color: var(--accent); box-shadow: var(--glow); }
+  .panel::before { content:''; position:absolute; top:-1px; left:-1px; width:10px; height:10px; border-top:2px solid var(--accent); border-left:2px solid var(--accent); }
+  .panel::after  { content:''; position:absolute; bottom:-1px; right:-1px; width:10px; height:10px; border-bottom:2px solid var(--accent); border-right:2px solid var(--accent); }
+
+  .panel-label {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.65rem; letter-spacing: 0.25em; color: var(--accent);
+    margin-bottom: 1rem;
+    display: flex; align-items: center; gap: 0.6rem;
+  }
+  .panel-label::before { content:''; display:inline-block; width:8px; height:8px; background:var(--accent); box-shadow:0 0 6px var(--accent); }
+  .panel-label.blue { color: var(--accent3); }
+  .panel-label.blue::before { background: var(--accent3); box-shadow: 0 0 6px var(--accent3); }
+  .panel-label.yellow { color: var(--yellow); }
+  .panel-label.yellow::before { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
+
+  /* Drop zone */
+  .drop-zone {
+    border: 1px dashed var(--dim);
+    padding: 2.5rem 1rem;
+    text-align: center; cursor: pointer;
+    transition: all 0.3s; position: relative; overflow: hidden;
+  }
+  .drop-zone:hover, .drop-zone.dragover { border-color: var(--accent); background: rgba(0,255,159,0.03); }
+  .drop-zone input[type="file"] { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+  .dz-icon { font-size: 2.2rem; margin-bottom: 0.5rem; display: block; opacity: 0.6; }
+  .dz-text { font-size: 0.8rem; color: var(--dim); line-height: 1.6; }
+  .dz-filename { font-size: 0.85rem; color: var(--accent); margin-top: 0.5rem; word-break: break-all; }
+
+  .status-bar {
+    margin-top: 1rem; padding: 0.6rem 0.8rem;
+    background: rgba(0,0,0,0.3); border-left: 2px solid var(--dim);
+    font-size: 0.75rem; color: var(--dim); transition: all 0.3s;
+  }
+  .status-bar.ok  { border-color: var(--accent);  color: var(--accent); }
+  .status-bar.err { border-color: var(--accent2); color: var(--accent2); }
+
+  /* Config */
+  .config-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .field-group { display: flex; flex-direction: column; gap: 0.4rem; }
+  label { font-size: 0.7rem; color: var(--dim); letter-spacing: 0.1em; text-transform: uppercase; }
+  input[type="text"], input[type="number"] {
+    background: rgba(0,0,0,0.4); border: 1px solid var(--border);
+    color: var(--text); font-family: 'Share Tech Mono', monospace;
+    font-size: 0.9rem; padding: 0.6rem 0.8rem; outline: none;
+    transition: border-color 0.2s; width: 100%;
+  }
+  input:focus { border-color: var(--accent3); box-shadow: 0 0 10px rgba(0,170,255,0.2); }
+
+  /* Search */
+  .search-row { display: flex; gap: 0.6rem; margin-bottom: 0.8rem; }
+  .search-row input { flex: 1; }
+
+  .btn-small {
+    font-family: 'Share Tech Mono', monospace; font-size: 0.75rem;
+    background: transparent; border: 1px solid var(--dim); color: var(--text);
+    padding: 0.5rem 0.9rem; cursor: pointer; white-space: nowrap; transition: all 0.2s;
+  }
+  .btn-small:hover { border-color: var(--yellow); color: var(--yellow); }
+  .btn-small.danger:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  .search-results-list {
+    background: rgba(0,0,0,0.5); border: 1px solid var(--border);
+    max-height: 280px; overflow-y: auto;
+    scrollbar-width: thin; scrollbar-color: var(--dim) transparent;
+    display: none;
+  }
+  .search-results-list.open { display: block; }
+
+  .result-item {
+    padding: 0.5rem 0.8rem; font-size: 0.8rem; color: var(--dim);
+    cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.03);
+    display: flex; align-items: center; justify-content: space-between;
+    transition: background 0.15s;
+  }
+  .result-item:hover { background: rgba(255,215,0,0.05); color: var(--text); }
+  .result-item.in-list { color: var(--accent); cursor: default; }
+  .result-item.in-list:hover { background: transparent; }
+
+  .add-btn {
+    font-size: 0.65rem; border: 1px solid var(--dim);
+    padding: 0.2rem 0.5rem; cursor: pointer; flex-shrink: 0; margin-left: 0.8rem;
+    transition: all 0.15s; white-space: nowrap;
+  }
+  .result-item:hover .add-btn { border-color: var(--yellow); color: var(--yellow); }
+
+  /* ROM list */
+  .rom-list {
+    background: rgba(0,0,0,0.3); border: 1px solid var(--border);
+    max-height: 300px; overflow-y: auto;
+    scrollbar-width: thin; scrollbar-color: var(--dim) transparent;
+    margin-bottom: 1rem;
+  }
+  .rom-item {
+    padding: 0.4rem 0.8rem; font-size: 0.78rem; color: var(--yellow);
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+  }
+  .rom-item::before { content: '+'; flex-shrink:0; color: var(--yellow); }
+  .rom-remove {
+    font-size: 0.7rem; color: var(--accent2); cursor: pointer;
+    opacity: 0.6; flex-shrink:0; transition: opacity 0.15s; padding: 0 0.2rem;
+  }
+  .rom-remove:hover { opacity: 1; }
+
+  /* Stats */
+  .stat-chip {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    background: rgba(0,255,159,0.07); border: 1px solid rgba(0,255,159,0.2);
+    padding: 0.3rem 0.8rem; font-size: 0.78rem; color: var(--accent);
+    margin-bottom: 1rem;
+  }
+
+  /* Download button */
+  .btn-download {
+    font-family: 'Orbitron', monospace; font-size: 0.85rem; font-weight: 700;
+    letter-spacing: 0.2em; background: var(--accent); border: none;
+    color: var(--bg); padding: 0.9rem 2.5rem; cursor: pointer;
+    transition: all 0.3s; text-transform: uppercase; width: 100%;
+  }
+  .btn-download:hover { background: #00ffb3; box-shadow: var(--glow); }
+
+  .hidden { display: none !important; }
+
+  /* Log */
+  .log-output {
+    background: rgba(0,0,0,0.5); border: 1px solid var(--border);
+    padding: 0.8rem; font-size: 0.72rem; color: var(--dim);
+    max-height: 90px; overflow-y: auto; line-height: 1.8;
+    scrollbar-width: thin; scrollbar-color: var(--dim) transparent;
+  }
+  .log-ok   { color: var(--accent); }
+  .log-err  { color: var(--accent2); }
+  .log-info { color: var(--accent3); }
+
+  footer { text-align:center; padding:1.5rem; font-size:0.65rem; color:var(--dim); letter-spacing:0.2em; border-top:1px solid var(--border); }
+
+  @media (max-width: 600px) {
+    .config-row { grid-template-columns: 1fr; }
+    header { padding: 1.2rem; }
+    h1 { font-size: 1.1rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-icon">🎮</div>
+  <div>
+    <h1>ROM DAT FILTER</h1>
+    <div class="subtitle">Cerca · Seleziona · Esporta</div>
+  </div>
+</header>
+
+<main>
+
+  <!-- 01 Carica DAT -->
+  <div class="panel" id="panelDat">
+    <div class="panel-label">01 — CARICA FILE DAT</div>
+    <div class="drop-zone" id="dropDat">
+      <input type="file" id="inputDat" accept=".dat,.xml">
+      <span class="dz-icon">📦</span>
+      <div class="dz-text">Trascina il file DAT qui<br><span style="font-size:0.7rem">oppure clicca per sfogliare (.dat / .xml)</span></div>
+      <div class="dz-filename" id="datFilename"></div>
+    </div>
+    <div class="status-bar" id="statusDat">In attesa del file DAT...</div>
+  </div>
+
+  <!-- 02 Nome output -->
+  <div class="panel hidden" id="panelConfig">
+    <div class="panel-label blue">02 — NOME FILE OUTPUT</div>
+    <div class="config-row">
+      <div class="field-group">
+        <label>Nome console (es: nes, snes, megadrive)</label>
+        <input type="text" id="consoleName" placeholder="console">
+      </div>
+      <div class="field-group">
+        <label>Numero top (es: 100 → top_100_nes.dat, vuoto = top_x)</label>
+        <input type="number" id="topNumber" placeholder="opzionale" min="1">
+      </div>
+    </div>
+  </div>
+
+  <!-- 03 Cerca ROM -->
+  <div class="panel hidden" id="panelSearch">
+    <div class="panel-label yellow">03 — CERCA E AGGIUNGI ROM</div>
+    <div style="font-size:0.75rem;color:var(--dim);margin-bottom:1rem;">Digita almeno 2 caratteri per cercare nel DAT. Clicca una ROM per aggiungerla.</div>
+    <div class="search-row">
+      <input type="text" id="manualSearch" placeholder="Cerca ROM nel DAT..." autocomplete="off">
+      <button class="btn-small" id="btnClearSearch">✕ Pulisci</button>
+    </div>
+    <div class="search-results-list" id="searchResultsList"></div>
+  </div>
+
+  <!-- 04 Lista selezionate + download -->
+  <div class="panel hidden" id="panelSelected">
+    <div class="panel-label">04 — ROM SELEZIONATE</div>
+    <div class="stat-chip">
+      <span id="statCount">0</span> ROM nel DAT di output
+      <button class="btn-small danger" id="btnClearAll" style="margin-left:0.8rem;font-size:0.65rem;padding:0.1rem 0.4rem;">✕ Svuota</button>
+    </div>
+    <div class="rom-list" id="romList"></div>
+    <button class="btn-download" id="btnDownload">⬇ SCARICA DAT FILTRATO</button>
+  </div>
+
+  <div class="log-output" id="logOutput">
+    <span class="log-info">// Sistema pronto. Carica un file DAT per iniziare.</span>
+  </div>
+
+</main>
+
+<footer>ROM DAT FILTER v2.0</footer>
+
+<script>
+  let allGameNodes = [];
+  let selectedNodes = [];
+  let datRoot = null;
+  let datDoc  = null;
+
+  // ── Log ───────────────────────────────────────────────────────────────────
+  const logEl = document.getElementById('logOutput');
+  function log(msg, type = '') {
+    const span = document.createElement('span');
+    if (type) span.className = `log-${type}`;
+    span.textContent = `> ${msg}`;
+    logEl.appendChild(span);
+    logEl.appendChild(document.createElement('br'));
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function getDisplayName(node) {
+    const desc = node.querySelector('description');
+    return desc ? desc.textContent : (node.getAttribute('name') || '?');
+  }
+  function getKey(node) {
+    return node.getAttribute('name') || getDisplayName(node);
+  }
+
+  // ── Load DAT ──────────────────────────────────────────────────────────────
+  document.getElementById('inputDat').addEventListener('change', async function() {
+    const file = this.files[0];
+    if (!file) return;
+    const text = await file.text();
+    const parser = new DOMParser();
+    datDoc = parser.parseFromString(text, 'application/xml');
+    if (datDoc.querySelector('parsererror')) {
+      log('Errore: XML non valido.', 'err');
+      document.getElementById('statusDat').textContent = '✗ File non valido';
+      document.getElementById('statusDat').className = 'status-bar err';
+      return;
+    }
+    datRoot = datDoc.documentElement;
+    allGameNodes = Array.from(datDoc.querySelectorAll('game'));
+    if (!allGameNodes.length) allGameNodes = Array.from(datDoc.querySelectorAll('machine'));
+    if (!allGameNodes.length) allGameNodes = Array.from(datDoc.querySelectorAll('software'));
+
+    selectedNodes = [];
+    document.getElementById('datFilename').textContent = file.name;
+    document.getElementById('panelDat').classList.add('loaded');
+    const st = document.getElementById('statusDat');
+    st.textContent = `✓ ${file.name} — ${allGameNodes.length} ROM caricate`;
+    st.className = 'status-bar ok';
+    document.getElementById('panelConfig').classList.remove('hidden');
+    document.getElementById('panelSearch').classList.remove('hidden');
+    document.getElementById('panelSelected').classList.add('hidden');
+    updateSelectedPanel();
+    log(`DAT caricato: ${file.name} (${allGameNodes.length} ROM)`, 'ok');
+  });
+
+  // Drag & drop
+  const dropEl = document.getElementById('dropDat');
+  dropEl.addEventListener('dragover', e => { e.preventDefault(); dropEl.classList.add('dragover'); });
+  dropEl.addEventListener('dragleave', () => dropEl.classList.remove('dragover'));
+  dropEl.addEventListener('drop', e => {
+    e.preventDefault(); dropEl.classList.remove('dragover');
+    const dt = new DataTransfer(); dt.items.add(e.dataTransfer.files[0]);
+    document.getElementById('inputDat').files = dt.files;
+    document.getElementById('inputDat').dispatchEvent(new Event('change'));
+  });
+
+  // ── Search ────────────────────────────────────────────────────────────────
+  const searchInput = document.getElementById('manualSearch');
+  const resultsList = document.getElementById('searchResultsList');
+
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.trim().toLowerCase();
+    if (q.length < 2) { resultsList.innerHTML = ''; resultsList.classList.remove('open'); return; }
+    const hits = allGameNodes.filter(n =>
+      getDisplayName(n).toLowerCase().includes(q) ||
+      (n.getAttribute('name') || '').toLowerCase().includes(q)
+    ).slice(0, 50);
+    renderResults(hits, q);
+  });
+
+  function renderResults(nodes, q) {
+    resultsList.innerHTML = '';
+    if (!nodes.length) {
+      resultsList.innerHTML = '<div style="padding:0.6rem 0.8rem;font-size:0.75rem;color:var(--dim)">Nessun risultato</div>';
+      resultsList.classList.add('open');
+      return;
+    }
+    const selectedKeys = new Set(selectedNodes.map(getKey));
+    nodes.forEach(node => {
+      const key = getKey(node);
+      const display = getDisplayName(node);
+      const isIn = selectedKeys.has(key);
+
+      const row = document.createElement('div');
+      row.className = 'result-item' + (isIn ? ' in-list' : '');
+
+      const nameSpan = document.createElement('span');
+      const idx = display.toLowerCase().indexOf(q);
+      if (idx >= 0 && !isIn) {
+        nameSpan.innerHTML =
+          escapeHtml(display.slice(0, idx)) +
+          `<span style="color:var(--yellow);font-weight:bold">${escapeHtml(display.slice(idx, idx+q.length))}</span>` +
+          escapeHtml(display.slice(idx+q.length));
+      } else {
+        nameSpan.textContent = display;
+      }
+      row.appendChild(nameSpan);
+
+      if (isIn) {
+        const badge = document.createElement('span');
+        badge.style.cssText = 'font-size:0.65rem;flex-shrink:0;margin-left:0.8rem;';
+        badge.textContent = '✓ aggiunta';
+        row.appendChild(badge);
+      } else {
+        const btn = document.createElement('span');
+        btn.className = 'add-btn';
+        btn.textContent = '+ AGGIUNGI';
+        btn.addEventListener('click', e => { e.stopPropagation(); addRom(node); });
+        row.addEventListener('click', () => addRom(node));
+        row.appendChild(btn);
+      }
+      resultsList.appendChild(row);
+    });
+    resultsList.classList.add('open');
+  }
+
+  function addRom(node) {
+    const key = getKey(node);
+    if (selectedNodes.some(n => getKey(n) === key)) return;
+    selectedNodes.push(node);
+    updateSelectedPanel();
+    searchInput.dispatchEvent(new Event('input')); // refresh ticks
+    log(`Aggiunta: ${getDisplayName(node)}`, 'ok');
+  }
+
+  function removeRom(key) {
+    selectedNodes = selectedNodes.filter(n => getKey(n) !== key);
+    updateSelectedPanel();
+    searchInput.dispatchEvent(new Event('input'));
+  }
+
+  function updateSelectedPanel() {
+    const panel = document.getElementById('panelSelected');
+    if (selectedNodes.length === 0) { panel.classList.add('hidden'); return; }
+    panel.classList.remove('hidden');
+    document.getElementById('statCount').textContent = selectedNodes.length;
+    const listEl = document.getElementById('romList');
+    listEl.innerHTML = '';
+    selectedNodes.forEach(node => {
+      const key  = getKey(node);
+      const name = getDisplayName(node);
+      const div  = document.createElement('div');
+      div.className = 'rom-item';
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = name;
+      nameSpan.style.flex = '1';
+      const rm = document.createElement('span');
+      rm.className = 'rom-remove';
+      rm.textContent = '✕';
+      rm.title = 'Rimuovi';
+      rm.addEventListener('click', () => removeRom(key));
+      div.appendChild(nameSpan);
+      div.appendChild(rm);
+      listEl.appendChild(div);
+    });
+  }
+
+  document.getElementById('btnClearSearch').addEventListener('click', () => {
+    searchInput.value = '';
+    resultsList.innerHTML = '';
+    resultsList.classList.remove('open');
+  });
+
+  document.getElementById('btnClearAll').addEventListener('click', () => {
+    selectedNodes = [];
+    updateSelectedPanel();
+    searchInput.dispatchEvent(new Event('input'));
+    log('Lista svuotata.', 'info');
+  });
+
+  document.addEventListener('click', e => {
+    if (!resultsList.contains(e.target) && e.target !== searchInput)
+      resultsList.classList.remove('open');
+  });
+
+  // ── Download ──────────────────────────────────────────────────────────────
+  document.getElementById('btnDownload').addEventListener('click', () => {
+    if (!selectedNodes.length || !datRoot) return;
+    const consoleName = document.getElementById('consoleName').value.trim() || 'console';
+    const topNum      = document.getElementById('topNumber').value.trim();
+    const prefix      = topNum ? `top_${topNum}_` : 'top_x_';
+    const filename    = `${prefix}${consoleName}.dat`;
+
+    const newDoc  = datDoc.implementation.createDocument(null, datRoot.nodeName, null);
+    const newRoot = newDoc.documentElement;
+    for (const attr of datRoot.attributes) newRoot.setAttribute(attr.name, attr.value);
+    const header = datRoot.querySelector('header');
+    if (header) newRoot.appendChild(newDoc.importNode(header, true));
+    for (const node of selectedNodes) newRoot.appendChild(newDoc.importNode(node, true));
+
+    const xml  = '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(newRoot);
+    const blob = new Blob([xml], { type: 'application/xml' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+    log(`Scaricato: ${filename} (${selectedNodes.length} ROM)`, 'ok');
+  });
+</script>
+</body>
+</html>
