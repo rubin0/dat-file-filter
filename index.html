@@ -829,10 +829,9 @@
             return;
           }
           datRoot = datDoc.documentElement;
-          allGameNodes = [];
-          allGameNodes.concat(Array.from(datDoc.querySelectorAll("game")));
-          allGameNodes.concat(Array.from(datDoc.querySelectorAll("machine")));
-          allGameNodes.concat(Array.from(datDoc.querySelectorAll("software")));
+          allGameNodes = Array.from(
+            datDoc.querySelectorAll("game, machine, software")
+          );
 
           selectedNodes = [];
 
