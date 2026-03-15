@@ -805,7 +805,7 @@
           .replace(/>/g, "&gt;");
       }
       function getDisplay(n) {
-        const d = n.querySelector("description");
+        const d = n.querySelector("name");
         return d ? d.textContent : n.getAttribute("name") || "?";
       }
       function getKey(n) {
@@ -829,11 +829,11 @@
             return;
           }
           datRoot = datDoc.documentElement;
-          allGameNodes = Array.from(datDoc.querySelectorAll("game"));
-          if (!allGameNodes.length)
-            allGameNodes = Array.from(datDoc.querySelectorAll("machine"));
-          if (!allGameNodes.length)
-            allGameNodes = Array.from(datDoc.querySelectorAll("software"));
+          allGameNodes = [];
+          allGameNodes.concat(Array.from(datDoc.querySelectorAll("game")));
+          allGameNodes.concat(Array.from(datDoc.querySelectorAll("machine")));
+          allGameNodes.concat(Array.from(datDoc.querySelectorAll("software")));
+
           selectedNodes = [];
 
           document.getElementById("datFilename").textContent = "▶ " + file.name;
